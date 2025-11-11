@@ -57,19 +57,20 @@ class WC_Gateway_Versapay extends WC_Payment_Gateway
 	/**
 	 * Setup general properties for the gateway.
 	 */
-	protected function setup_properties() {
-		$this->id = 'versapay';
-		$this->method_title = __('Versapay Payments', 'versapay-payments-woo');
-		$this->method_description = __('Have your customers pay with Versapay Payments.', 'versapay-payments-woo');
-		$this->has_fields = false;
-	}
+        protected function setup_properties() {
+                $this->id = 'versapay';
+                $this->method_title = __('Versapay Payments', 'versapay-payments-woo');
+                $this->method_description = __('Have your customers pay with Versapay Payments.', 'versapay-payments-woo');
+                $this->has_fields = false;
+                $this->supports = array('products');
+        }
 
-	/**
-	 * Initialise Gateway Settings Form Fields.
-	 */
-	public function init_form_fields() {
-		$this->form_fields = array(
-			'enabled' => array(
+        /**
+         * Initialise Gateway Settings Form Fields.
+         */
+        public function init_form_fields() {
+                $this->form_fields = array(
+                        'enabled' => array(
 				'title' => __('Enable/Disable', 'versapay-payments-woo'),
 				'label' => __('Enable Versapay Payments', 'versapay-payments-woo'),
 				'type' => 'checkbox',
@@ -79,22 +80,54 @@ class WC_Gateway_Versapay extends WC_Payment_Gateway
 			'title' => array(
 				'title' => __('Title', 'versapay-payments-woo'),
 				'type' => 'text',
-				'description' => __('Versapay Payments method description that the customer will see on your checkout.', 'versapay-payments-woo'),
-				'default' => __('Versapay Payments method', 'versapay-payments-woo'),
-				'desc_tip' => true,
-			),			
-			'subdomain' => array(
-				'title' => __('Subdomain', 'versapay-payments-woo'),
-				'type' => 'text',
-				'description' => __('Versapay Payments Subdomain.', 'versapay-payments-woo'),
-				'default' => __('', 'versapay-payments-woo'),
-				'desc_tip' => true,
-			),
-			'cc_enabled' => array(
-				'title' => __('Credit Card Enable', 'versapay-payments-woo'),
-				'type' => 'select',
-				'description' => __('Credit Card, API key and Token to be filled if it is yes.', 'versapay-payments-woo'),
-				'default' => __('', 'versapay-payments-woo'),
+                                'description' => __('Versapay Payments method description that the customer will see on your checkout.', 'versapay-payments-woo'),
+                                'default' => __('Versapay Payments method', 'versapay-payments-woo'),
+                                'desc_tip' => true,
+                        ),
+                        'environment' => array(
+                                'title' => __('Environment', 'versapay-payments-woo'),
+                                'type' => 'select',
+                                'description' => __('Choose which VersaPay environment to connect to.', 'versapay-payments-woo'),
+                                'default' => 'uat',
+                                'desc_tip' => true,
+                                'options' => array(
+                                        'uat' => __('UAT', 'versapay-payments-woo'),
+                                        'production' => __('Production', 'versapay-payments-woo'),
+                                ),
+                        ),
+                        'subdomain' => array(
+                                'title' => __('Subdomain', 'versapay-payments-woo'),
+                                'type' => 'text',
+                                'description' => __('Versapay Payments Subdomain.', 'versapay-payments-woo'),
+                                'default' => __('', 'versapay-payments-woo'),
+                                'desc_tip' => true,
+                        ),
+                        'api_token' => array(
+                                'title' => __('API Token', 'versapay-payments-woo'),
+                                'type' => 'text',
+                                'description' => __('VersaPay E-commerce API Token.', 'versapay-payments-woo'),
+                                'default' => __('', 'versapay-payments-woo'),
+                                'desc_tip' => true,
+                        ),
+                        'api_key' => array(
+                                'title' => __('API Key', 'versapay-payments-woo'),
+                                'type' => 'text',
+                                'description' => __('VersaPay E-commerce API Key.', 'versapay-payments-woo'),
+                                'default' => __('', 'versapay-payments-woo'),
+                                'desc_tip' => true,
+                        ),
+                        'custom_base_url' => array(
+                                'title' => __('Custom Base URL', 'versapay-payments-woo'),
+                                'type' => 'text',
+                                'description' => __('Optional: override the VersaPay e-commerce base URL (must start with https://).', 'versapay-payments-woo'),
+                                'default' => '',
+                                'desc_tip' => true,
+                        ),
+                        'cc_enabled' => array(
+                                'title' => __('Credit Card Enable', 'versapay-payments-woo'),
+                                'type' => 'select',
+                                'description' => __('Credit Card, API key and Token to be filled if it is yes.', 'versapay-payments-woo'),
+                                'default' => __('', 'versapay-payments-woo'),
 				'desc_tip' => true,
 				'options' => array(
 								'0'=> 'No',
@@ -134,25 +167,11 @@ class WC_Gateway_Versapay extends WC_Payment_Gateway
 								'rejectPostCodeMismatch' => 'Reject Postal Code Mismatch',
 								'rejectUnknown' => 'Reject AVS Unknown'
 							)
-			),
-			'api_token' => array(
-				'title' => __('API Token', 'versapay-payments-woo'),
-				'type' => 'text',
-				'description' => __('API Token.', 'versapay-payments-woo'),
-				'default' => __('', 'versapay-payments-woo'),
-				'desc_tip' => true,
-			),
-			'api_key' => array(
-				'title' => __('API KEY', 'versapay-payments-woo'),
-				'type' => 'text',
-				'description' => __('API Key.', 'versapay-payments-woo'),
-				'default' => __('', 'versapay-payments-woo'),
-				'desc_tip' => true,
-			),
-			'cc_settlement_token' => array(
-				'title' => __('Credit Card Settlement Token', 'versapay-payments-woo'),
-				'type' => 'text',
-				'description' => __('Credit Card Settlement Token.', 'versapay-payments-woo'),
+                        ),
+                        'cc_settlement_token' => array(
+                                'title' => __('Credit Card Settlement Token', 'versapay-payments-woo'),
+                                'type' => 'text',
+                                'description' => __('Credit Card Settlement Token.', 'versapay-payments-woo'),
 				'default' => __('', 'versapay-payments-woo'),
 				'desc_tip' => true,
 			),
@@ -195,20 +214,92 @@ class WC_Gateway_Versapay extends WC_Payment_Gateway
 				'default' => __('', 'versapay-payments-woo'),
 				'desc_tip' => true,
 			),
-		);
-	}
+                );
+        }
+
+        /**
+         * Get the VersaPay e-commerce base URL.
+         *
+         * @return string
+         */
+        public function get_ecom_base_url() {
+                $environment = $this->get_option('environment', 'uat');
+                $custom_url = trim((string) $this->get_option('custom_base_url', ''));
+
+                if ('' !== $custom_url) {
+                        $custom_url = preg_replace('#/+$#', '', $custom_url);
+                        return $custom_url;
+                }
+
+                return 'production' === $environment
+                        ? 'https://ecommerce-api.versapay.com'
+                        : 'https://ecommerce-api-uat.versapay.com';
+        }
+
+        /**
+         * Validate and sanitize the custom base URL setting.
+         *
+         * @param string $key Option key.
+         * @param mixed  $value Option value.
+         *
+         * @return string
+         */
+        public function validate_custom_base_url_field($key, $value) {
+                $value = trim((string) $value);
+
+                if ('' === $value) {
+                        return '';
+                }
+
+                if (0 !== stripos($value, 'https://')) {
+                        $this->add_error(__('Custom base URL must start with https://', 'versapay-payments-woo'));
+                        return '';
+                }
+
+                $parsed = wp_parse_url($value);
+                if (empty($parsed['host'])) {
+                        $this->add_error(__('Custom base URL must include a valid host.', 'versapay-payments-woo'));
+                        return '';
+                }
+
+                $sanitized = 'https://' . $parsed['host'];
+
+                if (!empty($parsed['port'])) {
+                        $sanitized .= ':' . $parsed['port'];
+                }
+
+                if (!empty($parsed['path'])) {
+                        $sanitized .= rtrim($parsed['path'], '/');
+                }
+
+                return esc_url_raw($sanitized);
+        }
 
 	/**
 	 * Check If The Gateway Is Available For Use.
 	 *
 	 * @return bool
 	 */
-	public function is_available() {
-		$order = null;
-		$needs_shipping = false;
+        public function is_available() {
+                $api_token = trim((string) $this->get_option('api_token', ''));
+                $api_key = trim((string) $this->get_option('api_key', ''));
 
-		// Test if shipping is needed first.
-		if (WC()->cart && WC()->cart->needs_shipping()) {
+                if ('' === $api_token || '' === $api_key) {
+                        return false;
+                }
+
+                $currency = get_woocommerce_currency();
+                $supported_currencies = apply_filters('woocommerce_versapay_supported_currencies', array());
+
+                if (!empty($supported_currencies) && !in_array($currency, $supported_currencies, true)) {
+                        return false;
+                }
+
+                $order = null;
+                $needs_shipping = false;
+
+                // Test if shipping is needed first.
+                if (WC()->cart && WC()->cart->needs_shipping()) {
 			$needs_shipping = true;
 		} elseif (is_page(wc_get_page_id('checkout')) && 0 < get_query_var('order-pay')) {
 			$order_id = absint(get_query_var('order-pay'));
