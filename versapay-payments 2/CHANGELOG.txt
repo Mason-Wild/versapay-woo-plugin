@@ -1,0 +1,35 @@
+2023-08-31 - version 0.1.0
+* Initial release
+
+2024-03-20 - version 0.2.0
+* fixed - iFrame doesn't load
+
+2024-04-15 - version 0.3.0
+* fixed - undefined variable customerId
+
+2024-08-08 - version 0.4.0
+* fixed - shipping amount sometimes missing from auth
+* fixed - no error message when auth amount is different from order amount
+* fixed - unable to pay with another payment method when Versapay Payments enabled
+
+2024-10-29 - version 0.5.0
+* update to use Ecommerce API v2
+* fixed - propper error message when mandatory information is missing on the item
+
+2025-01-09 - version 25.1
+* added support for HPOS
+* added logging for failed payment
+* code added to refresh the iFrame when updated_cart_totals triggers
+
+2025-03-10 - version 25.2
+* fixed - the Versapay Order ID missing in some cases when using Legacy posts storage
+* fixed - wrong AVS rules are sent when nothing is selected
+
+2025-04-01 - version 25.3
+* added support for Apple Pay
+* fixed - multiple errors print on checkout
+
+2025-05-06 - version 25.4
+* fixed - multiple errors print on checkout for some themes
+* fixed - wrong SKU is pulled for variable items
+* added backend logging
