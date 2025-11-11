@@ -16,6 +16,82 @@
  * @package WooCommerce\Versapay
  */
 
+/**
+ * Return the configured VersaPay gateway instance, if available.
+ *
+ * Centralizing this lookup keeps the SDK enqueue and API helpers aligned with the
+ * gateway options that WooCommerce has already loaded from the database.
+ *
+ * @return WC_Payment_Gateway|false
+ */
+function versapay_get_gateway_instance()
+{
+    if (!class_exists('WC_Payment_Gateways')) {
+        return false;
+    }
+
+    $payment_gateways = WC_Payment_Gateways::instance();
+    if (!$payment_gateways || !method_exists($payment_gateways, 'payment_gateways')) {
+        return false;
+    }
+
+    $gateways = $payment_gateways->payment_gateways();
+
+    return isset($gateways['versapay']) ? $gateways['versapay'] : false;
+}
+
+/**
+ * Sanitize a subdomain value supplied through the gateway settings.
+ *
+ * @param string $subdomain Raw subdomain value saved in the settings.
+ * @return string Normalized subdomain or an empty string when invalid.
+ */
+function versapay_normalize_subdomain($subdomain)
+{
+    if (!is_string($subdomain)) {
+        return '';
+    }
+
+    $subdomain = trim($subdomain);
+
+    return ($subdomain !== '' && preg_match('/^[a-z0-9-]+$/i', $subdomain)) ? strtolower($subdomain) : '';
+}
+
+/**
+ * Return the sanitized merchant subdomain if one has been configured.
+ *
+ * @param WC_Payment_Gateway|false $payment_gateway VersaPay gateway instance.
+ * @return string
+ */
+function versapay_get_subdomain($payment_gateway = false)
+{
+    if (!$payment_gateway) {
+        $payment_gateway = versapay_get_gateway_instance();
+    }
+
+    if (!$payment_gateway || !isset($payment_gateway->subdomain)) {
+        return '';
+    }
+
+    return versapay_normalize_subdomain($payment_gateway->subdomain);
+}
+
+/**
+ * Determine the API/SDK host for the configured merchant.
+ *
+ * Per VersaPay's authentication guide the ecommerce API host is the default entry point.
+ * Merchants with dedicated subdomains continue to use their tenant-specific host.
+ *
+ * @param WC_Payment_Gateway|false $payment_gateway VersaPay gateway instance.
+ * @return string
+ */
+function versapay_get_api_host($payment_gateway = false)
+{
+    $subdomain = versapay_get_subdomain($payment_gateway);
+
+    return $subdomain !== '' ? "{$subdomain}.versapay.com" : 'ecommerce-api.versapay.com';
+}
+
 add_action('wp_enqueue_scripts', 'versapay_enqueue_sdk');
 function versapay_enqueue_sdk()
 {
@@ -24,32 +100,15 @@ function versapay_enqueue_sdk()
         return;
     }
 
-    if (!class_exists('WC_Payment_Gateways')) {
+    $payment_gateway = versapay_get_gateway_instance();
+    if (!$payment_gateway) {
         return;
     }
-
-    $payment_gateways = WC_Payment_Gateways::instance();
-    $gateways = $payment_gateways->payment_gateways();
-
-    if (!isset($gateways['versapay'])) {
-        return;
-    }
-
-    $payment_gateway = $gateways['versapay'];
-
-    $subdomain = isset($payment_gateway->subdomain) ? trim($payment_gateway->subdomain) : '';
-    // Accept only safe characters in the merchant subdomain to avoid malformed URLs.
-    if ($subdomain !== '' && !preg_match('/^[a-z0-9-]+$/i', $subdomain)) {
-        $subdomain = '';
-    }
-
-    // If no dedicated subdomain is provided, fall back to the primary ecommerce API host.
-    $host = $subdomain !== '' ? "{$subdomain}.versapay.com" : 'ecommerce-api.versapay.com';
 
     // Load the VersaPay SDK so our gateway script can initialize safely.
     wp_enqueue_script(
         'versapay-sdk',
-        "https://{$host}/client.js",
+        'https://' . versapay_get_api_host($payment_gateway) . '/client.js',
         array(),
         null,
         true
@@ -407,9 +466,9 @@ function get_data_payload()
 
 function process_versapay_sale_request($dataPayload)
 {
-    $subdomain = WC_Payment_Gateways::instance()->payment_gateways()['versapay']->subdomain;
+    $payment_gateway = versapay_get_gateway_instance();
     $sessionId = isset($_POST['versapay_session_key']) ? sanitize_text_field($_POST['versapay_session_key']) : '';
-    $url = "https://" . $subdomain . ".versapay.com/api/v2/sessions/" . $sessionId . "/sales";
+    $url = 'https://' . versapay_get_api_host($payment_gateway) . '/api/v2/sessions/' . $sessionId . '/sales';
 
     $curl = curl_init($url);
     curl_setopt($curl, CURLOPT_POST, true);

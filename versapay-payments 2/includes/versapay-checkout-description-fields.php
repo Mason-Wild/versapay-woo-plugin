@@ -11,7 +11,8 @@ function getVSessionKey()
     $email = $payment_gateway->email_id;
     $password = $payment_gateway->password;
     $account = $payment_gateway->account;
-    $subdomain = $payment_gateway->subdomain;
+    $subdomain = versapay_get_subdomain($payment_gateway);
+    $host = versapay_get_api_host($payment_gateway);
 
     $cc_enabled = $payment_gateway->cc_enabled;
     $ach_enabled = $payment_gateway->ach_enabled;
@@ -30,7 +31,7 @@ function getVSessionKey()
         if (is_user_logged_in()) {
             $versapay_walletid = get_user_meta($customerId, "versapay_walletid");
             if (!$versapay_walletid[0]) {
-                $url = "https://".$subdomain.".versapay.com/api/v2/wallets";   
+                $url = 'https://' . $host . '/api/v2/wallets';
                 $wparams = [];
                 $wparams['gatewayAuthorization']['apiToken'] = $apiToken;
                 $wparams['gatewayAuthorization']['apiKey'] = $apiKey;
@@ -197,7 +198,7 @@ function getVSessionKey()
                                         'allowLabelUpdate' => false];
     }
             
-    $curl = curl_init('https://'.$subdomain.'.versapay.com/api/v2/sessions');
+    $curl = curl_init('https://' . $host . '/api/v2/sessions');
     curl_setopt($curl, CURLOPT_POST, true);
     curl_setopt($curl, CURLOPT_POSTFIELDS, json_encode($params, JSON_UNESCAPED_SLASHES));
     curl_setopt($curl, CURLOPT_HTTPHEADER, array('Content-Type:application/json'));
@@ -212,6 +213,7 @@ function getExpressCheckoutConfig()
 {
     $payment_gateways = WC_Payment_Gateways::instance();
     $payment_gateway = $payment_gateways->payment_gateways()['versapay'];
+    $subdomain = versapay_get_subdomain($payment_gateway);
 
     $paymentMethods = [];
 
@@ -229,7 +231,7 @@ function getExpressCheckoutConfig()
             "initiativeContext" => $payment_gateway->apple_pay_initiative_context,
             "merchantCapabilities" => ["supports3DS"],
             "supportedNetworks" => ["amex", "masterCard", "visa"],
-            "ecommSubdomain" => $payment_gateway->subdomain,
+            "ecommSubdomain" => $subdomain,
             "countryCode" => "US",
             "currencyCode" => "USD",
         ];
