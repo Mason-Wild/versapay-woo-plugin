@@ -1,5 +1,7 @@
 <?php
 add_filter('woocommerce_gateway_description', 'versapay_description_fields', 20, 2);
+add_action('wp_ajax_versapay_create_session', 'versapay_ajax_create_session');
+add_action('wp_ajax_nopriv_versapay_create_session', 'versapay_ajax_create_session');
 
 /**
  * Retrieve the configured VersaPay gateway instance.
@@ -217,6 +219,10 @@ function vp_build_session_options($gateway, $base_url, $api_token, $api_key) {
  */
 function vp_create_versapay_session($amount, $currency, $token, $key, $base_url, $additional_options = array()) {
     $url = trailingslashit($base_url) . 'sessions';
+    $decimals = function_exists('wc_get_price_decimals') ? wc_get_price_decimals() : 2;
+    $formatted_amount = function_exists('wc_format_decimal')
+        ? wc_format_decimal($amount, $decimals)
+        : number_format((float) $amount, $decimals, '.', '');
     $body = array(
         'gatewayAuthorization' => array(
             'apiToken' => $token,
@@ -224,8 +230,8 @@ function vp_create_versapay_session($amount, $currency, $token, $key, $base_url,
         ),
         'options' => array_merge(
             array(
-                'orderTotal' => (float) $amount,
-                'currency' => strtoupper($currency),
+                'orderTotal' => $formatted_amount,
+                'currency' => strtoupper((string) $currency),
             ),
             $additional_options
         ),
@@ -331,7 +337,10 @@ function versapay_description_fields($description, $payment_id)
     $api_key = trim((string) $gateway->get_option('api_key', ''));
     $base_url = method_exists($gateway, 'get_ecom_base_url') ? $gateway->get_ecom_base_url() : '';
 
-    $cart_total = WC()->cart ? (float) WC()->cart->get_total('edit') : 0;
+    $cart_total = 0;
+    if (WC()->cart) {
+        $cart_total = (float) WC()->cart->get_total('edit');
+    }
     $currency = get_woocommerce_currency();
 
     $session_key = '';
@@ -363,6 +372,8 @@ function versapay_description_fields($description, $payment_id)
         $versapay_plugin_url = str_replace('http://', 'https://', $versapay_plugin_url);
     }
 
+    $ajax_nonce = wp_create_nonce('versapay_create_session');
+
     wp_enqueue_script(
         'versapay_gateway',
         $versapay_plugin_url,
@@ -378,6 +389,8 @@ function versapay_description_fields($description, $payment_id)
             'sessionKey' => $session_key,
             'ecomBaseURL' => $base_url,
             'expressCheckoutConfig' => wp_json_encode($express_checkout_config),
+            'ajaxUrl' => admin_url('admin-ajax.php'),
+            'nonce' => $ajax_nonce,
         )
     );
 
@@ -390,7 +403,78 @@ function versapay_description_fields($description, $payment_id)
     <input type="hidden" name="versapay_express_checkout_payment" id="versapay_express_checkout_payment" />
     <?php
 
+    wp_nonce_field('versapay_create_session', 'versapay_session_nonce');
+
     $description .= ob_get_clean();
 
     return $description;
+}
+
+/**
+ * Handle AJAX requests to create VersaPay sessions on demand.
+ */
+function versapay_ajax_create_session() {
+    check_ajax_referer('versapay_create_session', 'nonce');
+
+    $gateway = vp_get_versapay_gateway_instance();
+    if (!$gateway) {
+        wp_send_json_error(
+            array('message' => __('VersaPay gateway is not available.', 'versapay-payments-woo')),
+            400
+        );
+    }
+
+    $api_token = trim((string) $gateway->get_option('api_token', ''));
+    $api_key = trim((string) $gateway->get_option('api_key', ''));
+    $base_url = method_exists($gateway, 'get_ecom_base_url') ? $gateway->get_ecom_base_url() : '';
+
+    if ('' === $api_token || '' === $api_key || '' === $base_url) {
+        wp_send_json_error(
+            array('message' => __('VersaPay credentials are not configured.', 'versapay-payments-woo')),
+            400
+        );
+    }
+
+    if (!WC()->cart) {
+        wp_send_json_error(
+            array('message' => __('WooCommerce cart is unavailable.', 'versapay-payments-woo')),
+            400
+        );
+    }
+
+    $cart_total = (float) WC()->cart->get_total('edit');
+    $currency = get_woocommerce_currency();
+
+    $session_options = vp_build_session_options($gateway, $base_url, $api_token, $api_key);
+    $session = vp_create_versapay_session($cart_total, $currency, $api_token, $api_key, $base_url, $session_options);
+
+    if ($session instanceof WP_Error) {
+        $logger = wc_get_logger();
+        $logger->error(
+            'VersaPay AJAX session creation failed',
+            array(
+                'source' => 'versapay',
+                'data' => $session->get_error_data(),
+                'error' => $session->get_error_message(),
+            )
+        );
+
+        wp_send_json_error(
+            array('message' => __('Unable to create a VersaPay session at this time.', 'versapay-payments-woo')),
+            500
+        );
+    }
+
+    if (!is_array($session) || empty($session['sessionId'])) {
+        wp_send_json_error(
+            array('message' => __('VersaPay session key is missing.', 'versapay-payments-woo')),
+            500
+        );
+    }
+
+    wp_send_json_success(
+        array(
+            'sessionKey' => $session['sessionId'],
+        )
+    );
 }

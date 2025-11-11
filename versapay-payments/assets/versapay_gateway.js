@@ -3,6 +3,77 @@ let cartTotalValue;
 let paymentMethodSelect = false;
 let client = null;
 let expressCheckout = false;
+let sessionRequestPromise = null;
+const SESSION_REQUEST_MAX_RETRIES = 2;
+
+const fetchSessionKey = (attempt = 0) => {
+    if (!window.scriptParams || !window.scriptParams.ajaxUrl || !window.scriptParams.nonce) {
+        return Promise.reject(new Error('VersaPay session key is missing'));
+    }
+
+    return jQuery
+        .ajax({
+            url: window.scriptParams.ajaxUrl,
+            method: 'POST',
+            dataType: 'json',
+            data: {
+                action: 'versapay_create_session',
+                nonce: window.scriptParams.nonce,
+            },
+        })
+        .then((response) => {
+            if (response && response.success && response.data && response.data.sessionKey) {
+                return response.data.sessionKey;
+            }
+            throw new Error('VersaPay session request failed');
+        })
+        .catch((error) => {
+            if (attempt < SESSION_REQUEST_MAX_RETRIES) {
+                return new Promise((resolve, reject) => {
+                    setTimeout(() => {
+                        fetchSessionKey(attempt + 1)
+                            .then(resolve)
+                            .catch(reject);
+                    }, 500);
+                });
+            }
+            throw error;
+        });
+};
+
+const ensureSessionKey = (forceRefresh = false) => {
+    if (!window.scriptParams) {
+        return Promise.reject(new Error('VersaPay session key is missing'));
+    }
+
+    if (!forceRefresh && window.scriptParams.sessionKey) {
+        return Promise.resolve(window.scriptParams.sessionKey);
+    }
+
+    if (forceRefresh) {
+        window.scriptParams.sessionKey = '';
+        sessionRequestPromise = null;
+    }
+
+    if (sessionRequestPromise) {
+        return sessionRequestPromise;
+    }
+
+    sessionRequestPromise = fetchSessionKey()
+        .then((sessionKey) => {
+            window.scriptParams.sessionKey = sessionKey;
+            const hiddenField = document.getElementById('versapay_session_key');
+            if (hiddenField) {
+                hiddenField.value = sessionKey;
+            }
+            return sessionKey;
+        })
+        .finally(() => {
+            sessionRequestPromise = null;
+        });
+
+    return sessionRequestPromise;
+};
 
 const isElementLoaded = async (selector) => {
     while (document.querySelector(selector) === null) {
@@ -72,16 +143,13 @@ const waitForSDK = (max = 25) =>
         })();
     });
 
-const initVersapayPaymentMethod = () => {
+const initVersapayPaymentMethod = (forceRefresh = false) => {
     jQuery('.woocommerce-error').remove();
     cartTotalValue = getCartTotalValue();
 
     waitForSDK()
-        .then(() => {
-            if (!window.scriptParams || !window.scriptParams.sessionKey) {
-                throw new Error('VersaPay session key is missing');
-            }
-
+        .then(() => ensureSessionKey(forceRefresh))
+        .then((sessionKey) => {
             expressCheckout = false;
 
             const styles = { form: { 'margin-left': 0 } };
@@ -97,7 +165,7 @@ const initVersapayPaymentMethod = () => {
                 window.versapay.teardownClient(client);
             }
 
-            client = window.versapay.initClient(window.scriptParams.sessionKey, styles, [], cartTotalValue, '', expressCheckoutConfig);
+            client = window.versapay.initClient(sessionKey, styles, [], cartTotalValue, '', expressCheckoutConfig);
 
             const docWidth = Math.min(500, document.documentElement.clientWidth);
             const docWidthMod = docWidth < 500 ? 0.8 : 1;
@@ -213,7 +281,7 @@ const initVersapayPaymentMethod = () => {
                                             });
                                         }
 
-                                        jQuery('#versapay_session_key').val(window.scriptParams.sessionKey);
+                                        jQuery('#versapay_session_key').val(sessionKey);
                                         jQuery('#versapay_payments').val(JSON.stringify(payments));
                                         jQuery('#versapay_express_checkout_payment').val(JSON.stringify(expressCheckoutPayment));
                                         jQuery('#place_order').trigger('click');
@@ -262,7 +330,8 @@ const debounce = (func, wait) => {
 const onCheckoutUpdated = debounce(() => {
     const newCartTotalValue = getCartTotalValue();
     if (cartTotalValue !== newCartTotalValue) {
-        initVersapayPaymentMethod();
+        cartTotalValue = newCartTotalValue;
+        initVersapayPaymentMethod(true);
     }
 }, 300);
 
