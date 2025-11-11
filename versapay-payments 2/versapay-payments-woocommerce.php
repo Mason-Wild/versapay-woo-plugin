@@ -43,8 +43,13 @@ function versapay_enqueue_sdk()
         $subdomain = '';
     }
 
+<<<<<<< HEAD
     // If no production subdomain is provided, fall back to the shared UAT environment.
     $host = $subdomain !== '' ? "{$subdomain}.versapay.com" : 'ecommerce-api-uat.versapay.com';
+=======
+    // If no dedicated subdomain is provided, fall back to the primary ecommerce API host.
+    $host = $subdomain !== '' ? "{$subdomain}.versapay.com" : 'ecommerce-api.versapay.com';
+>>>>>>> codex/fix-versapay-woocommerce-gateway-sdk-loading-7ohn3a
 
     // Load the VersaPay SDK so our gateway script can initialize safely.
     wp_enqueue_script(
