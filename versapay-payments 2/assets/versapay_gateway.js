@@ -2,6 +2,7 @@ const errorMessage = "There was a problem processing your payment. Please check 
 let cartTotalValue;
 let paymentMethodSelect = false;
 let client;
+// Track whether the express checkout flow should be used when submitting the order payload.
 let expressCheckout = false;
 
 const isElementLoaded = async (selector) => {
@@ -74,11 +75,13 @@ const parseExpressCheckoutConfig = () => {
 
 const initVersapayPaymentMethod = () => {
     if (!window.scriptParams || !window.scriptParams.sessionKey) {
+        // Wait for wp_localize_script to inject the session before attempting to bootstrap the SDK client.
         setTimeout(initVersapayPaymentMethod, 200);
         return;
     }
 
     if (!window.versapay || typeof window.versapay.initClient !== "function") {
+        // The VersaPay SDK has not finished loading yet; retry shortly.
         setTimeout(initVersapayPaymentMethod, 200);
         return;
     }
@@ -100,6 +103,7 @@ const initVersapayPaymentMethod = () => {
         expressCheckout = false;
 
     if (client && typeof window.versapay.teardownClient === "function") {
+                // Clean up any prior iframe instance before re-initializing.
                 window.versapay.teardownClient(client);
         }
         client = window.versapay.initClient(scriptParams.sessionKey, styles, [], cartTotalValue, "", expressCheckoutConfig);

@@ -19,6 +19,7 @@
 add_action('wp_enqueue_scripts', 'versapay_enqueue_sdk');
 function versapay_enqueue_sdk()
 {
+    // Only enqueue the SDK when the checkout form is present.
     if (!is_checkout()) {
         return;
     }
@@ -37,12 +38,15 @@ function versapay_enqueue_sdk()
     $payment_gateway = $gateways['versapay'];
 
     $subdomain = isset($payment_gateway->subdomain) ? trim($payment_gateway->subdomain) : '';
+    // Accept only safe characters in the merchant subdomain to avoid malformed URLs.
     if ($subdomain !== '' && !preg_match('/^[a-z0-9-]+$/i', $subdomain)) {
         $subdomain = '';
     }
 
+    // If no production subdomain is provided, fall back to the shared UAT environment.
     $host = $subdomain !== '' ? "{$subdomain}.versapay.com" : 'ecommerce-api-uat.versapay.com';
 
+    // Load the VersaPay SDK so our gateway script can initialize safely.
     wp_enqueue_script(
         'versapay-sdk',
         "https://{$host}/client.js",
