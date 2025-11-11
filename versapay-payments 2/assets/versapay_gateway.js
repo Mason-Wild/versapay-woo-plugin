@@ -2,6 +2,7 @@ const errorMessage = "There was a problem processing your payment. Please check 
 let cartTotalValue;
 let paymentMethodSelect = false;
 let client;
+let expressCheckout = false;
 
 const isElementLoaded = async (selector) => {
     while (document.querySelector(selector) === null) {
@@ -49,18 +50,59 @@ const displayErrorMessage = () => {
 	);
 };
 
+const parseExpressCheckoutConfig = () => {
+    if (!window.scriptParams) {
+        return {};
+    }
+
+    const { expressCheckoutConfig } = window.scriptParams;
+
+    if (!expressCheckoutConfig) {
+        return {};
+    }
+
+    if (typeof expressCheckoutConfig === "string") {
+        try {
+            return JSON.parse(expressCheckoutConfig);
+        } catch (error) {
+            return {};
+        }
+    }
+
+    return expressCheckoutConfig;
+};
+
 const initVersapayPaymentMethod = () => {
+    if (!window.scriptParams || !window.scriptParams.sessionKey) {
+        setTimeout(initVersapayPaymentMethod, 200);
+        return;
+    }
+
+    if (!window.versapay || typeof window.versapay.initClient !== "function") {
+        setTimeout(initVersapayPaymentMethod, 200);
+        return;
+    }
+
+    if (!document.getElementById("versapay-container")) {
+        if (paymentMethodSelect) {
+                setTimeout(initVersapayPaymentMethod, 200);
+        }
+        return;
+    }
+
     jQuery(".woocommerce-error").remove();
-	cartTotalValue = getCartTotalValue();
+        cartTotalValue = getCartTotalValue();
 
     const styles = { form: { "margin-left": 0 } };
 
-	const expressCheckoutConfig = JSON.parse(scriptParams.expressCheckoutConfig);
+        const expressCheckoutConfig = parseExpressCheckoutConfig();
 
-    if (client) {
-		versapay.teardownClient(client);
-	}
-	client = versapay.initClient(scriptParams.sessionKey, styles, [], cartTotalValue, "", expressCheckoutConfig);
+        expressCheckout = false;
+
+    if (client && typeof window.versapay.teardownClient === "function") {
+                window.versapay.teardownClient(client);
+        }
+        client = window.versapay.initClient(scriptParams.sessionKey, styles, [], cartTotalValue, "", expressCheckoutConfig);
 
     const docWidth = Math.min(500, document.documentElement.clientWidth);
 	const docWidthMod = docWidth < 500 ? 0.8 : 1;

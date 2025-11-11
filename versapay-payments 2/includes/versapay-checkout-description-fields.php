@@ -261,10 +261,10 @@ function versapay_description_fields($description, $payment_id)
 
     $cart = WC()->cart;
 
-    wp_enqueue_script('versapay_gateway', $versapayPluginURL, array('jquery', 'wc-checkout'), '1.0', true);
+    wp_enqueue_script('versapay_gateway', $versapayPluginURL, array('jquery', 'wc-checkout', 'versapay-sdk'), '1.0', true);
     wp_localize_script('versapay_gateway', 'scriptParams', array(
         'sessionKey' => $sessionKey,
-        'expressCheckoutConfig' => json_encode(getExpressCheckoutConfig())
+        'expressCheckoutConfig' => getExpressCheckoutConfig()
     ));
 
     $description .= ob_get_clean();

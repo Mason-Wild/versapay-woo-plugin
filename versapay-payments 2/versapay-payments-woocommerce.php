@@ -16,14 +16,40 @@
  * @package WooCommerce\Versapay
  */
 
-add_action('woocommerce_after_checkout_form', 'versapay_jscript_checkout');
-function versapay_jscript_checkout()
+add_action('wp_enqueue_scripts', 'versapay_enqueue_sdk');
+function versapay_enqueue_sdk()
 {
-    $payment_gateways = WC_Payment_Gateways::instance();
-    $payment_gateway = $payment_gateways->payment_gateways()['versapay'];
-    $subdomain = $payment_gateway->subdomain;
+    if (!is_checkout()) {
+        return;
+    }
 
-    echo '<script type="text/javascript" src="https://' . $subdomain . '.versapay.com/client.js"></script>';
+    if (!class_exists('WC_Payment_Gateways')) {
+        return;
+    }
+
+    $payment_gateways = WC_Payment_Gateways::instance();
+    $gateways = $payment_gateways->payment_gateways();
+
+    if (!isset($gateways['versapay'])) {
+        return;
+    }
+
+    $payment_gateway = $gateways['versapay'];
+
+    $subdomain = isset($payment_gateway->subdomain) ? trim($payment_gateway->subdomain) : '';
+    if ($subdomain !== '' && !preg_match('/^[a-z0-9-]+$/i', $subdomain)) {
+        $subdomain = '';
+    }
+
+    $host = $subdomain !== '' ? "{$subdomain}.versapay.com" : 'ecommerce-api-uat.versapay.com';
+
+    wp_enqueue_script(
+        'versapay-sdk',
+        "https://{$host}/client.js",
+        array(),
+        null,
+        true
+    );
 }
 
 if (!defined('ABSPATH')) {
