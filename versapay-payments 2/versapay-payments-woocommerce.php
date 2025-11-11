@@ -16,14 +16,44 @@
  * @package WooCommerce\Versapay
  */
 
-add_action('woocommerce_after_checkout_form', 'versapay_jscript_checkout');
-function versapay_jscript_checkout()
+add_action('wp_enqueue_scripts', 'versapay_enqueue_sdk');
+function versapay_enqueue_sdk()
 {
-    $payment_gateways = WC_Payment_Gateways::instance();
-    $payment_gateway = $payment_gateways->payment_gateways()['versapay'];
-    $subdomain = $payment_gateway->subdomain;
+    // Only enqueue the SDK when the checkout form is present.
+    if (!is_checkout()) {
+        return;
+    }
 
-    echo '<script type="text/javascript" src="https://' . $subdomain . '.versapay.com/client.js"></script>';
+    if (!class_exists('WC_Payment_Gateways')) {
+        return;
+    }
+
+    $payment_gateways = WC_Payment_Gateways::instance();
+    $gateways = $payment_gateways->payment_gateways();
+
+    if (!isset($gateways['versapay'])) {
+        return;
+    }
+
+    $payment_gateway = $gateways['versapay'];
+
+    $subdomain = isset($payment_gateway->subdomain) ? trim($payment_gateway->subdomain) : '';
+    // Accept only safe characters in the merchant subdomain to avoid malformed URLs.
+    if ($subdomain !== '' && !preg_match('/^[a-z0-9-]+$/i', $subdomain)) {
+        $subdomain = '';
+    }
+
+    // If no dedicated subdomain is provided, fall back to the primary ecommerce API host.
+    $host = $subdomain !== '' ? "{$subdomain}.versapay.com" : 'ecommerce-api.versapay.com';
+
+    // Load the VersaPay SDK so our gateway script can initialize safely.
+    wp_enqueue_script(
+        'versapay-sdk',
+        "https://{$host}/client.js",
+        array(),
+        null,
+        true
+    );
 }
 
 if (!defined('ABSPATH')) {
