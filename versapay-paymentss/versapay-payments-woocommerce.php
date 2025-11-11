@@ -16,14 +16,41 @@
  * @package WooCommerce\Versapay
  */
 
-add_action('woocommerce_after_checkout_form', 'versapay_jscript_checkout');
-function versapay_jscript_checkout()
+add_action('wp_enqueue_scripts', 'versapay_enqueue_sdk', 20);
+function versapay_enqueue_sdk()
 {
-    $payment_gateways = WC_Payment_Gateways::instance();
-    $payment_gateway = $payment_gateways->payment_gateways()['versapay'];
-    $subdomain = $payment_gateway->subdomain;
+    if (!function_exists('is_checkout') || !is_checkout()) {
+        return;
+    }
 
-    echo '<script type="text/javascript" src="https://' . $subdomain . '.versapay.com/client.js"></script>';
+    if (!class_exists('WC_Payment_Gateways')) {
+        return;
+    }
+
+    $payment_gateways = WC_Payment_Gateways::instance()->payment_gateways();
+    if (empty($payment_gateways['versapay'])) {
+        return;
+    }
+
+    $payment_gateway = $payment_gateways['versapay'];
+    if (!method_exists($payment_gateway, 'get_ecom_base_url')) {
+        return;
+    }
+
+    $base_url = $payment_gateway->get_ecom_base_url();
+    if (empty($base_url)) {
+        return;
+    }
+
+    $sdk_url = trailingslashit($base_url) . 'client.js';
+
+    wp_enqueue_script(
+        'versapay-sdk',
+        $sdk_url,
+        array(),
+        null,
+        true
+    );
 }
 
 if (!defined('ABSPATH')) {
@@ -377,21 +404,42 @@ function get_data_payload()
 
 function process_versapay_sale_request($dataPayload)
 {
-    $subdomain = WC_Payment_Gateways::instance()->payment_gateways()['versapay']->subdomain;
+    $gateways = class_exists('WC_Payment_Gateways') ? WC_Payment_Gateways::instance()->payment_gateways() : array();
+    $gateway = isset($gateways['versapay']) ? $gateways['versapay'] : null;
+
     $sessionId = isset($_POST['versapay_session_key']) ? sanitize_text_field($_POST['versapay_session_key']) : '';
-    $url = "https://" . $subdomain . ".versapay.com/api/v2/sessions/" . $sessionId . "/sales";
+    if (!$gateway || !method_exists($gateway, 'get_ecom_base_url') || empty($sessionId)) {
+        return array('message' => __('VersaPay session could not be processed.', 'versapay-payments-woo'));
+    }
 
-    $curl = curl_init($url);
-    curl_setopt($curl, CURLOPT_POST, true);
-    curl_setopt($curl, CURLOPT_POSTFIELDS, json_encode($dataPayload, JSON_UNESCAPED_SLASHES));
-    curl_setopt($curl, CURLOPT_HTTPHEADER, ['Content-Type:application/json']);
-    curl_setopt($curl, CURLOPT_RETURNTRANSFER, true);
-    $response = curl_exec($curl);
-    curl_close($curl);
+    $base_url = $gateway->get_ecom_base_url();
+    $url = trailingslashit($base_url) . 'sessions/' . rawurlencode($sessionId) . '/sales';
 
-    $response = json_decode($response, true);
+    $response = wp_remote_post(
+        $url,
+        array(
+            'timeout' => 15,
+            'headers' => array(
+                'Content-Type' => 'application/json',
+                'Accept' => 'application/json',
+            ),
+            'body' => wp_json_encode($dataPayload),
+        )
+    );
 
-    return $response;
+    if (is_wp_error($response)) {
+        return array('message' => $response->get_error_message());
+    }
+
+    $status_code = wp_remote_retrieve_response_code($response);
+    $body = wp_remote_retrieve_body($response);
+    $decoded = json_decode($body, true);
+
+    if ($status_code >= 200 && $status_code < 300 && is_array($decoded)) {
+        return $decoded;
+    }
+
+    return array('message' => array('code' => $status_code, 'body' => $decoded));
 }
 
 add_action('woocommerce_thankyou', 'versapay_woocommerce_auto_complete_paid_order', 10, 1);
